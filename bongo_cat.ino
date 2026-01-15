@@ -10,10 +10,15 @@
 const char* ssid = "Mavric1";
 const char* password = "Sharad12";
 
-// Time configuration
+// Time configuration with proper timezone support
 const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = -6 * 3600;  // Change this for your timezone (PST = -8 hours)
-const int daylightOffset_sec = 3600;   // 1 hour for daylight saving
+// Use POSIX timezone strings for automatic DST handling
+// Common US timezones:
+const char* timezone = "CST6CDT,M3.2.0,M11.1.0";  // Central Time (auto DST)
+// const char* timezone = "EST5EDT,M3.2.0,M11.1.0";  // Eastern Time
+// const char* timezone = "MST7MDT,M3.2.0,M11.1.0";  // Mountain Time  
+// const char* timezone = "PST8PDT,M3.2.0,M11.1.0";  // Pacific Time
+// const char* timezone = "AKST9AKDT,M3.2.0,M11.1.0"; // Alaska Time
 
 // Display settings
 #define SCREEN_WIDTH 240
@@ -22,7 +27,7 @@ const int daylightOffset_sec = 3600;   // 1 hour for daylight saving
 // Configuration settings structure - simplified for time-only display
 struct BongoCatSettings {
     int sleep_timeout_minutes = 5;
-    bool daylight_savings_enabled = true;  // DST toggle
+    char timezone_string[64] = "CST6CDT,M3.2.0,M11.1.0";  // Store timezone string
     uint32_t checksum = 0;  // For validation
 };
 
@@ -64,6 +69,9 @@ bool is_excited = false;
 // Cat positioning
 #define CAT_SIZE 64   // Base sprite size - will be zoomed 4x for display
 
+// Global canvas buffer (moved from createBongoCat to prevent stack overflow)
+static lv_color_t canvas_buf[CAT_SIZE * CAT_SIZE];  // 64x64 buffer = 8KB
+
 // Display objects - only time
 lv_obj_t * screen = NULL;
 lv_obj_t * time_label = NULL;
@@ -102,61 +110,46 @@ void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data) {
         bool touched_time_area = (touchY < 75);  // Below y=75 toggles daylight savings
         
         if (touched_time_area) {
-            // Touch below y=75 - toggle daylight savings
-            Serial.println("🕐 Time area touched (y<75) - Toggling daylight savings!");
-            bool old_dst_setting = settings.daylight_savings_enabled;
-            settings.daylight_savings_enabled = !settings.daylight_savings_enabled;
+            // Touch below y=75 - cycle through common US timezones
+            Serial.println("🕐 Time area touched (y<75) - Cycling timezone!");
+            
+            // Cycle through common US timezones
+            if (strcmp(settings.timezone_string, "CST6CDT,M3.2.0,M11.1.0") == 0) {
+                strcpy(settings.timezone_string, "EST5EDT,M3.2.0,M11.1.0");  // Eastern
+                Serial.println("⏰ Switched to Eastern Time");
+            } else if (strcmp(settings.timezone_string, "EST5EDT,M3.2.0,M11.1.0") == 0) {
+                strcpy(settings.timezone_string, "MST7MDT,M3.2.0,M11.1.0");  // Mountain
+                Serial.println("⏰ Switched to Mountain Time");
+            } else if (strcmp(settings.timezone_string, "MST7MDT,M3.2.0,M11.1.0") == 0) {
+                strcpy(settings.timezone_string, "PST8PDT,M3.2.0,M11.1.0");  // Pacific
+                Serial.println("⏰ Switched to Pacific Time");
+            } else {
+                strcpy(settings.timezone_string, "CST6CDT,M3.2.0,M11.1.0");  // Back to Central
+                Serial.println("⏰ Switched to Central Time");
+            }
+            
             saveSettings();
             
-            // Calculate the time adjustment needed
-            int time_adjustment_hours = 0;
-            if (old_dst_setting && !settings.daylight_savings_enabled) {
-                // DST was ON, now OFF - subtract 1 hour
-                time_adjustment_hours = -1;
-            } else if (!old_dst_setting && settings.daylight_savings_enabled) {
-                // DST was OFF, now ON - add 1 hour
-                time_adjustment_hours = 1;
-            }
+            // Apply new timezone immediately
+            setenv("TZ", settings.timezone_string, 1);
+            tzset();
             
-            // Get current time and manually adjust it
+            // The timezone change should automatically adjust the displayed time
+            // Force immediate display update
+            updateTimeDisplay();
+            
+            // Print the new time for verification
             struct tm timeinfo;
             if (getLocalTime(&timeinfo)) {
-                // Adjust the hour
-                timeinfo.tm_hour += time_adjustment_hours;
-                
-                // Handle hour overflow/underflow
-                if (timeinfo.tm_hour >= 24) {
-                    timeinfo.tm_hour -= 24;
-                    timeinfo.tm_mday += 1; // Next day
-                } else if (timeinfo.tm_hour < 0) {
-                    timeinfo.tm_hour += 24;
-                    timeinfo.tm_mday -= 1; // Previous day
-                }
-                
-                // Convert back to time_t and set system time
-                time_t adjusted_time = mktime(&timeinfo);
-                struct timeval tv = { .tv_sec = adjusted_time, .tv_usec = 0 };
-                settimeofday(&tv, NULL);
-                
-                Serial.println("⏰ Daylight Savings: " + String(settings.daylight_savings_enabled ? "ON" : "OFF"));
-                Serial.println("🔄 Time adjusted by " + String(time_adjustment_hours) + " hour(s)");
-                
-                // Update time configuration for future NTP syncs
-                int current_dst_offset = settings.daylight_savings_enabled ? daylightOffset_sec : 0;
-                configTime(gmtOffset_sec, current_dst_offset, ntpServer);
-                
-                // Force display update
-                updateTimeDisplay();
-                
-                // Print new time for verification
-                if (getLocalTime(&timeinfo)) {
-                    char timeStr[20];
-                    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
-                    Serial.println("🕐 New time: " + String(timeStr));
-                }
+                char timeStr[30];
+                strftime(timeStr, sizeof(timeStr), "%H:%M:%S %Z", &timeinfo);
+                Serial.println("🕐 New time after timezone change: " + String(timeStr));
+                Serial.println("🌞 DST Status: " + String(timeinfo.tm_isdst ? "Active" : "Inactive"));
             } else {
-                Serial.println("❌ Failed to get current time for DST adjustment");
+                Serial.println("❌ Failed to get time after timezone change");
             }
+            
+            Serial.println("🔄 Timezone updated with automatic DST handling");
         } else {
             // Touch above y=75 - trigger cat excitement
             uint32_t current_time = millis();
@@ -192,6 +185,15 @@ void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data) {
     }
 }
 
+// Helper function to get timezone display name
+String getTimezoneDisplayName() {
+    if (strcmp(settings.timezone_string, "CST6CDT,M3.2.0,M11.1.0") == 0) return "CT";
+    if (strcmp(settings.timezone_string, "EST5EDT,M3.2.0,M11.1.0") == 0) return "ET";
+    if (strcmp(settings.timezone_string, "MST7MDT,M3.2.0,M11.1.0") == 0) return "MT";
+    if (strcmp(settings.timezone_string, "PST8PDT,M3.2.0,M11.1.0") == 0) return "PT";
+    return "??";
+}
+
 // Update time display  
 void updateTimeDisplay() {
     if (time_label) {
@@ -211,15 +213,10 @@ void updateTimeDisplay() {
                 
                 display_time = String(hour) + ":" + minute + " " + ampm;
                 
-                // Debug output (only print occasionally to avoid spam)
-                static uint32_t last_debug = 0;
-                if (millis() - last_debug > 10000) { // Every 10 seconds
-                    Serial.println("🕐 Display time: " + display_time + " (from system time)");
-                    last_debug = millis();
-                }
+                // Add timezone indicator (optional - comment out if display is too crowded)
+                // display_time += " " + getTimezoneDisplayName();
             } else {
                 display_time = "12:34 PM"; // Fallback to static time with AM/PM
-                Serial.println("⚠️ getLocalTime() failed, using fallback");
             }
         } else {
             // Use static fallback time - always convert to 12-hour format
@@ -235,14 +232,13 @@ void updateTimeDisplay() {
             } else {
                 display_time = "12:34 PM"; // Default fallback
             }
-            Serial.println("⚠️ Using fallback time: " + display_time);
         }
         
         lv_label_set_text(time_label, display_time.c_str());
     }
 }
 
-// Simple WiFi time sync
+// Simple WiFi time sync with proper timezone support
 void syncTimeFromWiFi() {
     Serial.println("📡 Connecting to WiFi...");
     WiFi.begin(ssid, password);
@@ -260,10 +256,17 @@ void syncTimeFromWiFi() {
         Serial.print("📍 IP address: ");
         Serial.println(WiFi.localIP());
         
-        // Configure time
+        // Set timezone using POSIX string (handles DST automatically)
+        Serial.println("🌍 Setting timezone: " + String(settings.timezone_string));
+        setenv("TZ", settings.timezone_string, 1);
+        tzset();
+        
+        // Give the timezone change time to take effect
+        delay(100);
+        
+        // Configure time with NTP (no manual offsets needed)
         Serial.println("🕐 Syncing time from NTP server...");
-        int current_dst_offset = settings.daylight_savings_enabled ? daylightOffset_sec : 0;
-        configTime(gmtOffset_sec, current_dst_offset, ntpServer);
+        configTime(0, 0, ntpServer);  // Let timezone string handle offsets
         
         // Wait for time sync (up to 5 seconds)
         struct tm timeinfo;
@@ -278,9 +281,27 @@ void syncTimeFromWiFi() {
             Serial.println("✅ Time synced successfully!");
             
             // Print current time for debugging
-            char timeStr[20];
-            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+            char timeStr[30];
+            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S %Z", &timeinfo);
             Serial.println("🕐 Current time: " + String(timeStr));
+            
+            // Verify timezone is working
+            if (strstr(timeStr, "UTC") != NULL) {
+                Serial.println("⚠️ WARNING: Still showing UTC time - timezone not applied!");
+                Serial.println("🔄 Trying to reapply timezone...");
+                setenv("TZ", settings.timezone_string, 1);
+                tzset();
+                delay(500);
+                
+                // Try getting time again
+                if (getLocalTime(&timeinfo)) {
+                    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S %Z", &timeinfo);
+                    Serial.println("🕐 Time after timezone reapply: " + String(timeStr));
+                }
+            }
+            
+            // Check if we're currently in DST
+            Serial.println("🌞 DST Status: " + String(timeinfo.tm_isdst ? "Active" : "Inactive"));
         } else {
             Serial.println("❌ Failed to sync time from NTP server");
             Serial.println("⚠️ Using fallback time instead");
@@ -294,6 +315,11 @@ void syncTimeFromWiFi() {
         Serial.println("\n❌ WiFi connection failed!");
         Serial.println("⚠️ Check your WiFi credentials in the code");
         Serial.println("⚠️ Using fallback time (12:34)");
+        
+        // Still apply the saved timezone even without WiFi
+        Serial.println("🌍 Applying saved timezone: " + String(settings.timezone_string));
+        setenv("TZ", settings.timezone_string, 1);
+        tzset();
     }
 }
 
@@ -339,9 +365,10 @@ void loadSettings() {
 void resetSettings() {
     // Reset to default values
     settings.sleep_timeout_minutes = 5;
-    settings.daylight_savings_enabled = true;  // Default DST on
+    strcpy(settings.timezone_string, "CST6CDT,M3.2.0,M11.1.0");  // Default to Central Time
     settings.checksum = calculateChecksum(&settings);
 }
+
 
 // Sprite management functions
 void sprite_manager_init(sprite_manager_t* manager) {
@@ -646,10 +673,20 @@ const char* get_state_name(animation_state_t state) {
 void setup() {
     Serial.begin(115200);
     Serial.println("🐱 Bongo Cat ESP32 - Starting up...");
+
     
     // Initialize EEPROM
     EEPROM.begin(EEPROM_SIZE);
+
+    
+    // TEMPORARY: Clear EEPROM to start fresh (comment out after first run)
+    // clearEEPROM();
+    
+    Serial.println("�  About to load settings...");
     loadSettings();
+
+    
+
     
     // Try to sync time from WiFi
     syncTimeFromWiFi();
@@ -699,8 +736,7 @@ void createBongoCat() {
     // Create cat canvas with proper sizing
     cat_canvas = lv_canvas_create(screen);
     
-    // Use 64x64 base sprite size for the canvas buffer
-    static lv_color_t canvas_buf[CAT_SIZE * CAT_SIZE];  // 64x64 buffer
+    // Use 64x64 base sprite size for the canvas buffer (now global)
     lv_canvas_set_buffer(cat_canvas, canvas_buf, CAT_SIZE, CAT_SIZE, LV_IMG_CF_TRUE_COLOR);
     
     // Apply 4x zoom to make 64x64 sprites appear as 256x256 on screen
