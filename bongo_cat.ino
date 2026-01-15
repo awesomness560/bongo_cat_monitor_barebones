@@ -171,7 +171,7 @@ void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data) {
                 // Cat is already excited - control brightness instead
                 static int brightness_level = 255;  // Start at full brightness
                 brightness_level -= 25;  // Decrease by 25 each touch
-                if (brightness_level < 50) brightness_level = 255;  // Reset to full when too dim
+                if (brightness_level < 25) brightness_level = 255;  // Reset to full when too dim
                 
                 // Set TFT brightness (0-255)
                 analogWrite(TFT_BL, brightness_level);  // Assuming TFT_BL is the backlight pin
