@@ -6,9 +6,26 @@
 #include "Free_Fonts.h"
 #include "animations_sprites.h"
 
-// WiFi credentials - CHANGE THESE TO YOUR NETWORK
-const char* ssid = "Mavric1";
-const char* password = "Sharad12";
+// WiFi credentials - Add multiple networks here
+struct WiFiNetwork {
+    const char* ssid;
+    const char* password;
+};
+
+// Add your WiFi networks here - it will try them in order
+WiFiNetwork wifiNetworks[] = {
+    {"Wifi name", "passwrd"},           // Home network
+};
+const int numWiFiNetworks = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
+
+// Helper function to add a new WiFi network (for future expansion)
+// You can call this from setup() if you want to add networks dynamically
+void printAvailableNetworks() {
+    Serial.println("📋 Configured WiFi networks:");
+    for (int i = 0; i < numWiFiNetworks; i++) {
+        Serial.println("   " + String(i + 1) + ". " + String(wifiNetworks[i].ssid));
+    }
+}
 
 // Time configuration with proper timezone support
 const char* ntpServer = "pool.ntp.org";
@@ -40,6 +57,8 @@ struct BongoCatSettings {
 BongoCatSettings settings;
 
 // Forward declarations
+uint32_t calculateChecksum(const BongoCatSettings* s);
+bool validateSettings(const BongoCatSettings* s);
 void saveSettings();
 void resetSettings();
 void updateTimeDisplay();
@@ -238,23 +257,39 @@ void updateTimeDisplay() {
     }
 }
 
-// Simple WiFi time sync with proper timezone support
+// Simple WiFi time sync with proper timezone support and multiple network support
 void syncTimeFromWiFi() {
-    Serial.println("📡 Connecting to WiFi...");
-    WiFi.begin(ssid, password);
+    Serial.println("📡 Scanning for available WiFi networks...");
     
-    // Try to connect for 10 seconds
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
+    bool connected = false;
+    int connectedNetworkIndex = -1;
+    
+    // Try each configured network
+    for (int i = 0; i < numWiFiNetworks && !connected; i++) {
+        Serial.println("🔍 Trying network: " + String(wifiNetworks[i].ssid));
+        WiFi.begin(wifiNetworks[i].ssid, wifiNetworks[i].password);
+        
+        // Try to connect for 10 seconds
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+            delay(500);
+            Serial.print(".");
+            attempts++;
+        }
+        
+        if (WiFi.status() == WL_CONNECTED) {
+            connected = true;
+            connectedNetworkIndex = i;
+            Serial.println("\n✅ Connected to: " + String(wifiNetworks[i].ssid));
+            Serial.print("📍 IP address: ");
+            Serial.println(WiFi.localIP());
+        } else {
+            Serial.println("\n❌ Failed to connect to: " + String(wifiNetworks[i].ssid));
+            WiFi.disconnect();
+        }
     }
     
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n✅ WiFi connected!");
-        Serial.print("📍 IP address: ");
-        Serial.println(WiFi.localIP());
+    if (connected) {
         
         // Set timezone using POSIX string (handles DST automatically)
         Serial.println("🌍 Setting timezone: " + String(settings.timezone_string));
@@ -312,8 +347,11 @@ void syncTimeFromWiFi() {
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
     } else {
-        Serial.println("\n❌ WiFi connection failed!");
-        Serial.println("⚠️ Check your WiFi credentials in the code");
+        Serial.println("\n❌ Could not connect to any configured WiFi network!");
+        Serial.println("⚠️ Available networks:");
+        for (int i = 0; i < numWiFiNetworks; i++) {
+            Serial.println("   - " + String(wifiNetworks[i].ssid));
+        }
         Serial.println("⚠️ Using fallback time (12:34)");
         
         // Still apply the saved timezone even without WiFi
@@ -684,9 +722,9 @@ void setup() {
     
     Serial.println("�  About to load settings...");
     loadSettings();
-
     
-
+    // Show configured WiFi networks
+    printAvailableNetworks();
     
     // Try to sync time from WiFi
     syncTimeFromWiFi();
