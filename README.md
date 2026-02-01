@@ -1,244 +1,178 @@
-# 🐱 Bongo Cat ESP32 - Your Cute Digital Typing Companion
+# 🐱 Bongo Cat ESP32 - Ornamental Desk Clock
 
-![Bongo Cat](web%20resources/cat1.png)
+A minimal, ornamental fork of the [Bongo Cat Monitor](https://github.com/vostoklabs/bongo_cat_monitor) project. This version strips away the typing companion features and desktop apps, turning it into a charming **standalone desk clock** with a touch-interactive Bongo Cat that you can enjoy without a computer connection.
 
-Bongo Cat is a cute digital pet that lives on your desk and types along with you! This ESP32-based project displays a charming cat that responds to your typing speed, shows system statistics (CPU, RAM, WPM), and features adorable animations that bring joy to your workspace.
+## 🔀 What Changed From the Original
+
+**Removed:**
+- Desktop companion application (Windows/Mac)
+- Typing detection and WPM tracking
+- System monitoring (CPU, RAM)
+- Serial communication with PC
+- Web flasher references and installer packages
+
+**Added:**
+- **Touch controls** – fully interactive via the touchscreen, no PC required
+- **Display sleep/wake** – hold to sleep, tap to wake
+- **Timezone cycling** – tap the time area to switch between US timezones
+- **Cat excitement mode** – tap the cat to trigger happy animations and brightness control
+
+The result is a self-contained ornamental piece: plug it in, set WiFi for time sync, and enjoy your Bongo Cat desk clock.
+
+---
 
 ## ✨ Features
 
-- **Real-time Typing Detection** - Cat types faster when you type faster
-- **System Monitoring** - Displays CPU usage, RAM usage, and current time
-- **WPM Tracking** - Shows your words per minute in real-time
-- **Multiple Animations** - Various cute expressions and movements
-- **Sleep Mode** - Cat goes to sleep when you're not active
-- **Customizable Settings** - Adjust display preferences and behavior
-- **Cross-Platform** - **🆕 Now available on Mac!** Windows and macOS support
-- **Open Source** - Complete source code available
-- **Easy Assembly** - No soldering required, around $10 to build
+- **Clock Display** – Shows current time in 12-hour format (synced via WiFi/NTP)
+- **Touch-Interactive Cat** – Tap to excite, wake from sleep, or adjust brightness
+- **Timezone Control** – Cycle Central → Eastern → Mountain → Pacific with a tap
+- **Display Sleep** – Hold 5 seconds to turn off; tap anywhere to wake
+- **Animated States** – Idle, sleepy, and excited animations with blinks and ear twitches
+- **Standalone** – No desktop app needed; runs entirely on the ESP32
 
-## 🎉 **NEW: Mac Support Available!** 
+---
 
-🍎 **Mac users can now enjoy Bongo Cat!** We've added full macOS support with:
-- **Native Mac app** - Download and install like any other Mac application
-- **Universal binary** - Works on both Intel and Apple Silicon Macs
-- **Easy installation** - Simple drag-and-drop setup with step-by-step guide
-- **Proper permissions** - Seamless integration with macOS security
+## 👆 Touch Controls
 
-📥 **[Download for Mac](https://github.com/vostoklabs/bongo_cat_monitor/releases)** | 📖 **[Mac Installation Guide](bongo-cat-electron/MAC_USER_GUIDE.md)**
+| Touch Location | Action | Result |
+|----------------|--------|--------|
+| **Anywhere** | Hold 5 seconds | Display sleeps (backlight off) |
+| **Anywhere** | Tap when asleep | Display wakes |
+| **Top area** (y < 75) | Quick tap | Cycle timezone (CT → ET → MT → PT → CT) |
+| **Cat area** (y ≥ 75) | Quick tap (cat sleeping) | Wake cat to idle |
+| **Cat area** (y ≥ 75) | Quick tap (idle) | Trigger excited mode (~1 minute) |
+| **Cat area** (y ≥ 75) | Quick tap (already excited) | Cycle brightness |
+
+---
 
 ## 🛒 Hardware Requirements
 
-You'll need an **ESP32 board with 2.4 inch TFT display**. We used this board:
+You'll need an **ESP32 board with 2.4" TFT display**. The project was designed for:
 
-**[ESP32-2432S028R 2.4" TFT Display Board](https://www.aliexpress.com/item/1005008176009397.html?spm=a2g0o.order_list.order_list_main.4.5abc1802ZwAPQo)**
+**[ESP32-2432S028R 2.4" TFT Display Board](https://www.aliexpress.com/item/1005008176009397.html)**
 
 This board includes:
 - ESP32-WROOM-32 module
-- 2.4" ILI9341 TFT LCD (240x320 resolution)
-- Touch screen capability
+- 2.4" ILI9341 TFT LCD (240×320 resolution)
+- Touch screen
 - USB-C connector
-- All necessary components integrated
+
+---
 
 ## 🚀 Quick Start
 
-### Option 1: Web Flasher (Recommended)
-1. **Flash the ESP32**: Visit our [Web Flasher](https://vostoklabs.github.io/Bongo_cat_webflasher/)
-2. **Connect your ESP32** board with 2.4 inch TFT display to your computer's USB port
-3. **Click "Connect"** and select your ESP32 device
-4. **Click "Install"** and wait for the process to complete
+### 1. Configure WiFi and Timezone
 
-### Option 2: Arduino IDE
+Edit `bongo_cat.ino` and add your WiFi credentials:
+
+```cpp
+WiFiNetwork wifiNetworks[] = {
+    {"Your WiFi Name", "Your Password"},
+};
+```
+
+The default timezone is Central Time. You can change it in code or cycle it via touch after flashing.
+
+### 2. Install Libraries
+
+1. Open Arduino IDE and install via **Sketch → Include Library → Manage Libraries**:
+   - **TFT_eSPI** – display driver
+   - **LVGL** – **version 8.x only** (not 9.x); search for "lvgl" and install 8.3.x
+
+2. Find your Arduino libraries folder. Arduino IDE usually installs packages here:
+   - **Windows:** `C:\Users\<YourUsername>\Documents\Arduino\libraries`
+   - **macOS:** `~/Documents/Arduino/libraries`
+   - **Linux:** `~/Arduino/libraries` or `~/Documents/Arduino/libraries`
+
+### 3. Configure LVGL and TFT_eSPI
+
+The project includes `lv_conf.h` and `User_Setup.h` that must be placed inside the installed library folders.
+
+**LVGL (`lv_conf.h`):**
+- Go to `libraries/lvgl/` (or `libraries/lvgl8/` depending on install)
+- If `lv_conf.h` exists in the library root → **replace** it with the one from this project
+- If it does not exist → **copy** the project's `lv_conf.h` into the library root
+
+**TFT_eSPI (`User_Setup.h`):**
+- Go to `libraries/TFT_eSPI/`
+- If `User_Setup.h` exists in the library root → **replace** it with the one from this project
+- If it does not exist → **copy** the project's `User_Setup.h` into the library root
+
+These config files match the ESP32-2432S028R-style 2.4" TFT board.
+
+### 4. Flash the ESP32
+
 1. Open `bongo_cat.ino` in Arduino IDE
-2. Install required libraries (see Configuration section)
-3. Select your ESP32 board and upload
+2. Select your ESP32 board (**Tools → Board**)
+3. Select the correct port (**Tools → Port**)
+4. Click **Upload**
 
-### Desktop Application Setup
+### 5. Use It
 
-#### 🍎 For Mac Users
-1. **Download** the Mac DMG file from [GitHub Releases](https://github.com/vostoklabs/bongo_cat_monitor/releases)
-2. **Follow** our detailed [Mac Installation Guide](bongo-cat-electron/MAC_USER_GUIDE.md)
-3. **Enjoy** your Bongo Cat with native Mac integration!
+Power the board via USB. It will connect to WiFi to sync time, then display the clock and Bongo Cat. Use the touchscreen to interact—no computer needed.
 
-#### 🪟 For Windows Users  
-1. **Download** the PC application archive: `BongoCat_v1.0.0_Windows.zip`
-2. **Extract** the ZIP file to a temporary folder
-3. **Run** `BongoCat_Setup.exe` from the extracted files
-4. **Install** and run the application
-5. The app will **automatically find and connect** to your ESP32 board
-6. **Check system tray** - the app runs in the background
-7. **Right-click tray icon** to access settings and configure display options
+---
 
 ## 📁 Project Structure
 
 ```
-├── 📁 animations/              # Animation sprite data
-│   ├── 📁 body/               # Body movement animations
-│   ├── 📁 faces/              # Facial expressions
-│   ├── 📁 paws/               # Paw movement animations
-│   ├── 📁 effects/            # Special effects (clicks, sleep)
-│   ├── 📁 table/              # Table/background elements
-│   └── 📄 Animation guidelines.md
-├── 📁 bongo_cat_app/          # Desktop companion application (Windows)
-│   ├── 📄 main.py             # Application entry point
-│   ├── 📄 engine.py           # Core logic and serial communication
-│   ├── 📄 gui.py              # Settings GUI
-│   ├── 📄 tray.py             # System tray functionality
-│   ├── 📄 config.py           # Configuration management
-│   └── 📄 requirements_app.txt
-├── 📁 bongo-cat-electron/     # 🆕 Cross-platform Electron app (Mac & Windows)
-│   ├── 📄 main.js             # Main Electron process
-│   ├── 📄 MAC_USER_GUIDE.md   # Step-by-step Mac installation guide
-│   ├── 📁 renderer/           # UI components
-│   ├── 📁 src/                # Core functionality modules
-│   └── 📄 package.json        # Dependencies and build configuration
-├── 📁 BongoCat_Release/       # Windows installer package
-│   ├── 📄 BongoCat_Setup.exe  # Ready-to-install executable
-│   ├── 📄 README.md           # Installation instructions
-│   └── 📄 LICENSE.txt
-├── 📁 web resources/          # Web flasher assets
-│   ├── 🖼️ cat1.png, cat2.png   # High-quality cat images
-│   ├── 🎞️ typing.gif          # Typing animation examples
-│   ├── 🎞️ typing fast.gif     # Fast typing animation
-│   ├── 🎞️ sleeping.gif        # Sleep mode animation
-│   └── 📸 settings.png        # Screenshots for documentation
-├── 📁 3d_printing/            # 3D printable case files (coming soon)
-│   └── 📄 case.3mf            # 3MF format case file
-├── 📄 bongo_cat.ino           # Main ESP32 firmware
-├── 📄 animations_sprites.h    # Sprite data header
-├── 📄 lv_conf.h              # LVGL configuration
-├── 📄 User_Setup.h           # TFT_eSPI library configuration
-├── 📄 Free_Fonts.h           # Font definitions
-├── 📄 manifest.json          # Web flasher configuration
-└── 📄 LICENSE.txt            # MIT License
+├── animations/              # Animation sprite data (C arrays)
+│   ├── body/               # Body sprites (standard, ear twitch)
+│   ├── faces/              # Face sprites (stock, happy, sleepy, blink)
+│   ├── paws/               # Paw sprites (left down, right down, both up)
+│   ├── effects/            # Effects (click, sleepy animations)
+│   └── table/              # Table/background
+├── Sprites/                # Source PNG images for sprites
+├── bongo_cat.ino           # Main ESP32 firmware
+├── animations_sprites.h    # Sprite layer definitions and animation states
+├── lv_conf.h               # LVGL configuration
+├── User_Setup.h            # TFT_eSPI display configuration
+├── Free_Fonts.h            # Font definitions
+└── LICENSE.txt
 ```
-
-## 🎨 Animation System
-
-The Bongo Cat features a sophisticated animation system with multiple states:
-
-### Animation Categories
-- **Idle States**: Default cat expressions and subtle movements
-- **Typing States**: Paw movements that match your typing speed
-- **Sleep Mode**: Peaceful sleeping animations when inactive
-- **Special Effects**: Click effects and transitions
-
-### Animation Examples
-| State | Speed | Description |
-|-------|-------|-------------|
-| ![Typing](web%20resources/typing.gif) | Normal | Regular typing animation |
-| ![Fast Typing](web%20resources/typing%20fast.gif) | Fast | High-speed typing animation |
-| ![Sleeping](web%20resources/sleeping.gif) | Idle | Sleep mode when inactive |
-
-### Adding Custom Animations
-1. Create your sprite data in the `animations/` folder
-2. Update `animations_sprites.h` with new sprite definitions
-3. Modify the animation logic in `bongo_cat.ino`
-
-## ⚙️ Configuration
-
-### TFT_eSPI Library Setup
-The `User_Setup.h` file contains the display configuration for your specific ESP32 board:
-
-```cpp
-#define ESP32_2432S028R     // Enable this for the recommended board
-#define TFT_MOSI 23
-#define TFT_MISO 19
-#define TFT_SCLK 18
-#define TFT_CS   15
-#define TFT_DC   2
-#define TFT_RST  4
-```
-
-### LVGL Configuration
-The `lv_conf.h` file configures the LVGL graphics library:
-- Display resolution: 240x320 pixels
-- Color depth: 16-bit
-- Animation settings
-- Memory allocation
-
-### Required Arduino Libraries
-- **TFT_eSPI** (configured with User_Setup.h)
-- **LVGL** (version 8.x)
-- **WiFi** (for time synchronization)
-
-## 🔧 Development
-
-### Building from Source
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/bongo-cat-esp32.git
-   ```
-
-2. **ESP32 Firmware**
-   - Open `bongo_cat.ino` in Arduino IDE
-   - Ensure libraries are installed
-   - Upload to your ESP32
-
-3. **Desktop Application**
-   ```bash
-   cd bongo_cat_app
-   pip install -r requirements_app.txt
-   python main.py
-   ```
-
-### Creating Installers
-- **Windows**: Use `installer.nsi` with NSIS
-- **Executable**: Use `bongo_cat.spec` with PyInstaller
-
-## 🎯 PC Application Features
-
-### System Tray Integration
-![Tray Screenshot](web%20resources/tray%20screenshot.png)
-
-The application runs quietly in your system tray and provides:
-- Automatic ESP32 detection and connection
-- Real-time data transmission
-- System resource monitoring
-
-### Settings Configuration
-![Settings](web%20resources/settings.png)
-
-Customize your Bongo Cat experience:
-- **Display Options**: Choose what information to show
-- **Sleep Timer**: Set inactivity timeout
-- **Animation Speed**: Adjust responsiveness
-- **Connection Settings**: COM port configuration
-
-## 🛠️ 3D Printing 
-
-You can download and 3D print the standing case for this project. It contains .step, .stl and .3mf files available in the 3D printing folder of this repo or from MakerWorld.
-
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to help:
-
-1. **Fork** the repository
-2. **Create** a feature branch
-3. **Make** your changes
-4. **Test** thoroughly
-5. **Submit** a pull request
-
-### Areas for Contribution
-- New animations and sprites
-- Additional display layouts
-- Case designs and 3D models
-- Code optimizations
-- Documentation improvements
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
-
-## 🙏 Acknowledgments
-
-- Original Bongo Cat meme creators
-
-## 📞 Support
-
-
-- **Web Flasher**: [https://vostoklabs.github.io/Bongo_cat_webflasher/](https://vostoklabs.github.io/Bongo_cat_webflasher/)
 
 ---
 
+## 🎨 Animation System
 
+The cat cycles through several states:
+
+| State | Description |
+|-------|-------------|
+| **Idle 1** | Paws up, stock face |
+| **Idle 2** | Paws hidden (under table) |
+| **Idle 3** | Sleepy face |
+| **Idle 4** | Sleepy face + floating sleepy effects |
+| **Excited** | Happy face, fast paw bounces (triggered by tap) |
+
+Additional behaviors:
+- **Blinking** – Random blinks every 3–8 seconds
+- **Ear twitch** – Occasional body twitch
+- **Auto-cycle** – Switches between idle and sleep every ~10 minutes
+
+---
+
+## ⚙️ Configuration
+
+### WiFi & Timezone
+
+Edit the `wifiNetworks` array and `timezone` string in `bongo_cat.ino`. The project uses POSIX timezone strings for automatic DST handling.
+
+### Required Libraries
+
+- **TFT_eSPI** – Use the project's `User_Setup.h` in the library folder (see Setup above)
+- **LVGL 8.x** – Use the project's `lv_conf.h` in the library folder (see Setup above). **Must be 8.x**, not 9.x.
+- **WiFi** – Built into ESP32 core
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see [LICENSE.txt](LICENSE.txt) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor) – Original project
+- Original Bongo Cat meme creators
